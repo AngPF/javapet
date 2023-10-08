@@ -10,7 +10,7 @@ public class AnimalService implements Service<Animal, Long>{
     private AnimalRepository repo = AnimalRepository.build();
 
     @Override
-    public List<Animal> findAll() {return repo.findAll();}
+    public List<Animal> findAll() { return repo.findAll(); }
 
     @Override
     public Animal findById(Long id) {

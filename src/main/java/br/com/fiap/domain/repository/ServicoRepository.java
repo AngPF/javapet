@@ -1,48 +1,49 @@
 package br.com.fiap.domain.repository;
 
-
 import br.com.fiap.domain.entity.animal.Animal;
-import br.com.fiap.domain.entity.pessoa.Pessoa;
-import br.com.fiap.domain.service.PFService;
+import br.com.fiap.domain.entity.servico.Servico;
+import br.com.fiap.domain.service.AnimalService;
 import br.com.fiap.infra.ConnectionFactory;
 
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class AnimalRepository implements Repository<Animal, Long>{
+public class ServicoRepository implements Repository<Servico, Long>{
 
-    private PFService service = new PFService();
+    private AnimalService service = new AnimalService();
     private ConnectionFactory factory;
-    private static final AtomicReference<AnimalRepository> instance = new AtomicReference<>();
 
-    private AnimalRepository() {this.factory = ConnectionFactory.build();}
-    public static AnimalRepository build() {
-        instance.compareAndSet(null, new AnimalRepository());
+    private static final AtomicReference<ServicoRepository> instance = new AtomicReference<>();
+
+    private ServicoRepository() {this.factory = ConnectionFactory.build();}
+
+    public static ServicoRepository build() {
+        instance.compareAndSet(null, new ServicoRepository());
         return instance.get();
     }
+
     @Override
-    public List<Animal> findAll() {
-        List<Animal> list = new ArrayList<>();
+    public List<Servico> findAll() {
+        List<Servico> list = new ArrayList<>();
         Connection con = factory.getConnection();
         ResultSet rs = null;
         Statement st = null;
         try {
-            String sql = "SELECT * FROM TB_ANIMAL";
+            String sql = "SELECT * FROM TB_SERVICO";
             st = con.createStatement();
             rs = st.executeQuery(sql);
             if (rs.isBeforeFirst()) {
                 while (rs.next()) {
-                    Long id = rs.getLong("ID_ANIMAL");
-                    String nome = rs.getString("NM_ANIMAL");
-                    String raca = rs.getString("RACA");
-                    String descricao = rs.getString("DS_ANIMAL");
-                    Pessoa dono = service.findById(rs.getLong("DONO"));
-                    String tipo = rs.getString("TP_PESSOA");
-                    list.add(new Animal(id, nome, raca, descricao, dono, tipo) {
-                    });
+                    Long id = rs.getLong("ID_SERVICO");
+                    LocalDate realizacao = rs.getDate("DT_REALIZACAO").toLocalDate();
+                    String descricao = rs.getString("DS_SERVICO");
+                    Animal animal = service.findById(rs.getLong("ANIMAL"));
+                    String tipo = rs.getString("TP_SERVICO");
+                    list.add(new Servico(id, descricao, animal, realizacao, tipo));
                 }
             }
         } catch (SQLException e) {
@@ -54,24 +55,23 @@ public class AnimalRepository implements Repository<Animal, Long>{
     }
 
     @Override
-    public Animal findById(Long id) {
-        Animal animal = null;
-        var sql = "SELECT * FROM TB_ANIMAL WHERE ID_ANIMAL = ?";
+    public Servico findById(Long id) {
+        Servico servico = null;
+        var sql = "SELECT * FROM TB_SERVICO WHERE ID_SERVICO = ?";
         Connection con = factory.getConnection();
         PreparedStatement ps = null;
         ResultSet rs = null;
-        try{
+        try {
             ps = con.prepareStatement(sql);
             ps.setLong(1, id);
             rs = ps.executeQuery();
             if (rs.isBeforeFirst()){
-                while (rs.next()){
-                    String nome = rs.getString("NM_ANIMAL");
-                    String raca = rs.getString("RACA");
-                    String descricao = rs.getString("DS_ANIMAL");
-                    String tipo = rs.getString("TP_ANIMAL");
-                    Pessoa dono = service.findById(rs.getLong("DONO"));
-                    animal = new Animal(id, nome, raca, descricao, tipo, dono);
+                while(rs.next()){
+                    LocalDate realizacao = rs.getDate("DT_REALIZACAO").toLocalDate();
+                    String descricao = rs.getString("DS_SERVICO");
+                    Animal animal = service.findById(rs.getLong("ANIMAL"));
+                    String tipo = rs.getString("TP_SERVICO");
+                    servico = new Servico(id, descricao, animal, realizacao, tipo);
                 }
             } else {
                 System.out.println("Dados não encontrados com o id: " + id);
@@ -81,12 +81,12 @@ public class AnimalRepository implements Repository<Animal, Long>{
         } finally {
             fecharObjetos(rs, ps, con);
         }
-        return animal;
+        return servico;
     }
 
     @Override
-    public Animal persiste(Animal animal) {
-        var sql = "BEGIN INSERT INTO TB_ANIMAL (ID_ANIMAL, NM_ANIMAL, RACA, DS_ANIMAL, TP_ANIMAL, DONO) VALUES (?,?,?,?,?,?) returning ID_ANIMAL into ?; END;";
+    public Servico persiste(Servico servico) {
+        var sql = "BEGIN INSERT INTO TB_SERVICO (ID_SERVICO, TP_SERVICO, DS_SERVICO, DT_REALIZACAO, ANIMAL) VALUES (?,?,?,?,?) returning ID_SERVICO into ?; END;";
 
         Connection con = factory.getConnection();
         CallableStatement cs = null;
@@ -94,24 +94,23 @@ public class AnimalRepository implements Repository<Animal, Long>{
         try {
 
             cs = con.prepareCall(sql);
-            cs.setString(1, animal.getNome());
-            cs.setString(2, animal.getRaca());
-            cs.setString(3, animal.getDescricao());
-            cs.setString(4, animal.getTipo());
-            cs.setLong(5, animal.getDono().getId());
+            cs.setString(1, servico.getTipo());
+            cs.setString(2, servico.getDescricao());
+            cs.setDate(3, Date.valueOf(servico.getRealizacao()));
+            cs.setLong(4, servico.getAnimal().getId());
 
-            cs.registerOutParameter(6, Types.BIGINT);
+            cs.registerOutParameter(5, Types.BIGINT);
 
             cs.executeUpdate();
 
-            animal.setId(cs.getLong(6));
+            servico.setId(cs.getLong(5));
 
         } catch (SQLException e){
             System.err.println("Não foi possível inserir os dados!\n" + e.getMessage());
         } finally {
             fecharObjetos(null, cs, con);
         }
-        return animal;
+        return servico;
     }
 
     private static void fecharObjetos(ResultSet rs, Statement st, Connection con) {
